@@ -1,0 +1,61 @@
+version: '2.3'
+
+services: 
+
+    db:
+        image: mysql:5.7
+        command: --innodb-use-native-aio=0
+        container_name: db
+        restart: always
+        tty: true
+        ports: 
+            - "3306:3306"
+        environment: 
+            - MYSQL_DATABASE=laravel
+            - MYSQL_ROOT_PASSWORD=root
+            - MYSQL_USER=root
+        networks: 
+            - laravel-app-network
+        volumes: 
+            - ./.docker/dbdata:/var/lib/mysql
+        healthcheck:
+            test: ["CMD-SHELL",'mysql -uroot --database=laravel --password=root --execute="SELECT COUNT(table_name) > 0 FROM information_schema.tables;" --skip-column-names -B']
+            interval: 25s
+            timeout: 30s
+            retries: 6
+
+    app:
+        build: .
+        container_name: app
+        volumes: 
+            - ./laravel:/var/www
+        networks: 
+            - laravel-app-network
+        depends_on: 
+            db:
+                condition: service_healthy
+
+
+    nginx:
+        build: .docker/nginx
+        container_name: nginx
+        restart: always
+        tty: true
+        ports: 
+            - "8000:80"
+        volumes: 
+            - ./laravel:/var/www
+        networks: 
+            - laravel-app-network
+
+    redis:
+        image: redis:alpine
+        container_name: redis
+        expose: 
+            - 6379
+        networks: 
+            - laravel-app-network
+
+networks: 
+    laravel-app-network:
+        driver: bridge
